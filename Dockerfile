@@ -12,25 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG CI_IMAGE_REGISTRY
-
-FROM golang:1.20.4 as builder
-
-ARG COMPONENT
-
-ENV SRC /go/src/github.com/oracle/oci-cloud-controller-manager
+FROM --platform=${BUILDPLATFORM} golang:1.20.4 as builder
 
 ENV GOPATH /go/
-RUN mkdir -p /go/bin $SRC
-ADD . $SRC
-WORKDIR $SRC
+ENV SRC /go/src/github.com/oracle/oci-cloud-controller-manager
 
-RUN COMPONENT=${COMPONENT} make clean build
+WORKDIR $SRC
+COPY go.mod go.sum $SRC/
+RUN go mod download
+
+ADD . $SRC
+
+ARG COMPONENT
+ARG TARGETARCH
+RUN COMPONENT=${COMPONENT} ARCH=${TARGETARCH} make clean build
+
+############
 
 FROM oraclelinux:7-slim
-
-COPY --from=0 /go/src/github.com/oracle/oci-cloud-controller-manager/dist/* /usr/local/bin/
-COPY --from=0 /go/src/github.com/oracle/oci-cloud-controller-manager/image/* /usr/local/bin/
 
 RUN yum install -y util-linux \
   && yum install -y e2fsprogs \
@@ -46,4 +45,5 @@ RUN chmod 755 /sbin/encrypt-umount
 RUN chmod 755 /sbin/rpm-host
 RUN chmod 755 /sbin/chroot-bash
 
-COPY --from=0 /go/src/github.com/oracle/oci-cloud-controller-manager/dist/* /usr/local/bin/
+COPY --from=builder /go/src/github.com/oracle/oci-cloud-controller-manager/image/* /usr/local/bin/
+COPY --from=builder /go/src/github.com/oracle/oci-cloud-controller-manager/dist/* /usr/local/bin/

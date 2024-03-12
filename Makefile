@@ -14,12 +14,6 @@
 
 PKG := github.com/oracle/oci-cloud-controller-manager
 
-ifeq "$(CI_IMAGE_REGISTRY)" ""
-    CI_IMAGE_REGISTRY   ?= iad.ocir.io/oracle
-else
-    CI_IMAGE_REGISTRY   ?= ${CI_IMAGE_REGISTRY}
-endif
-
 ifeq "$(OSS_REGISTRY)" ""
     OSS_REGISTRY   ?= iad.ocir.io/oracle
 else
@@ -35,7 +29,7 @@ ifeq "$(VERSION)" ""
     # Allow overriding for release versions else just equal the build (git hash)
     VERSION ?= ${BUILD}
 else
-    VERSION   ?= ${VERSION}
+    VERSION ?= ${VERSION}
 endif
 
 RELEASE = v1.28.0
@@ -144,23 +138,15 @@ run-volume-provisioner-dev:
 	    -v=4
 
 .PHONY: image
-BUILD_ARGS = --build-arg CI_IMAGE_REGISTRY="$(CI_IMAGE_REGISTRY)" --build-arg COMPONENT="$(COMPONENT)"
+BUILD_ARGS = --build-arg COMPONENT="$(COMPONENT)"
 image:
-	docker  build $(BUILD_ARGS) \
-		-t $(IMAGE)-amd64:$(VERSION) .
-	docker  build $(BUILD_ARGS) \
-		-t $(IMAGE)-arm64:$(VERSION) -f Dockerfile_arm_all .
+	docker buildx build $(BUILD_ARGS) --platform=linux/amd64,linux/arm64 --push \
+		-t $(IMAGE):$(VERSION) .
 
 .PHONY: push
 push: image
 	docker login --username="${oss_docker_username}" --password="${oss_docker_password}" $(OSS_REGISTRY)
 	docker push $(IMAGE):$(VERSION)
-
-.PHONY: build
-build-arm-all: build-dirs
-	@for component in $(COMPONENT); do \
-    	GOOS=$(GOOS) GOARCH=arm64 CGO_ENABLED=0 go build -o dist/arm/$$component -ldflags "-X main.version=$(VERSION) -X main.build=$(BUILD)" ./cmd/$$component ; \
-    done
 
 .PHONY: docker-push
 docker-push: ## Push the docker image
@@ -194,4 +180,3 @@ test-local: build \
 .PHONY: run-ccm-e2e-tests-local
 run-ccm-e2e-tests-local:
 	./hack/run_e2e_test.sh
-

@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/oracle/oci-go-sdk/v65/core"
 	"k8s.io/apimachinery/pkg/labels"
@@ -237,6 +238,11 @@ func (cp *CloudProvider) CurrentNodeName(ctx context.Context, hostname string) (
 func (cp *CloudProvider) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
 	//Please do not try to optimise it by using InstanceCache because we prefer correctness over efficiency here
 	cp.logger.With("instanceID", providerID).Debug("Checking instance exists by provider id")
+
+	if providerID == "" || !strings.HasPrefix(providerID, providerPrefix) {
+		return true, nil
+	}
+
 	instanceID, err := MapProviderIDToResourceID(providerID)
 	if err != nil {
 		return false, err
@@ -256,6 +262,11 @@ func (cp *CloudProvider) InstanceExistsByProviderID(ctx context.Context, provide
 func (cp *CloudProvider) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
 	//Please do not try to optimise it by using InstanceCache because we prefer correctness over efficiency here
 	cp.logger.With("instanceID", providerID).Debug("Checking instance is stopped by provider id")
+
+	if providerID == "" || !strings.HasPrefix(providerID, providerPrefix) {
+		return false, nil
+	}
+
 	instanceID, err := MapProviderIDToResourceID(providerID)
 	if err != nil {
 		return false, err
