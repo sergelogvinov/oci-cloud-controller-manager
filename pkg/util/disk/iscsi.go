@@ -615,7 +615,7 @@ func Rescan(logger *zap.SugaredLogger, devicePath string) error {
 	cmd = cmdexec.Command("bash", "-c", cmdStr)
 	output, err = cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("command failed: %v\narguments: %s\nOutput: %v\n", err, cmdStr, string(output))
+		logger.Errorf("command failed: %v\narguments: %s\nOutput: %v\n", err, cmdStr, string(output))
 	}
 	logger.With("command", cmdStr, "output", string(output)).Debug("rescan output")
 
