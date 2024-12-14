@@ -17,6 +17,7 @@ package oci
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -157,6 +158,10 @@ func (nic *NodeInfoController) processItem(key string) error {
 
 	if err != nil {
 		return err
+	}
+
+	if !strings.HasPrefix(cacheNode.Spec.ProviderID, providerPrefix) {
+		return nil
 	}
 
 	// if node has required labels already, don't process agin

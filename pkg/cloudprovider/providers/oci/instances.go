@@ -354,6 +354,11 @@ func (cp *CloudProvider) CurrentNodeName(ctx context.Context, hostname string) (
 func (cp *CloudProvider) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
 	//Please do not try to optimise it by using Cache because we prefer correctness over efficiency here
 	cp.logger.With("resourceID", providerID).Debug("Checking instance exists by provider id")
+
+	if providerID == "" || !strings.HasPrefix(providerID, providerPrefix) {
+		return true, nil
+	}
+
 	resourceID, err := MapProviderIDToResourceID(providerID)
 	if err != nil {
 		return false, err
@@ -401,6 +406,11 @@ func (cp *CloudProvider) checkForAuthorizationError(ctx context.Context, instanc
 func (cp *CloudProvider) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
 	//Please do not try to optimise it by using InstanceCache because we prefer correctness over efficiency here
 	cp.logger.With("resourceID", providerID).Debug("Checking instance is stopped by provider id")
+
+	if providerID == "" || !strings.HasPrefix(providerID, providerPrefix) {
+		return false, nil
+	}
+
 	resourceID, err := MapProviderIDToResourceID(providerID)
 	if err != nil {
 		return false, err
