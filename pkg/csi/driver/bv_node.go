@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -122,6 +123,13 @@ func (d BlockVolumeNodeDriver) NodeStageVolume(ctx context.Context, req *csi.Nod
 					logger.With(zap.Error(err)).Error("Failed get ipv6 address for Iscsi Target.")
 					return nil, status.Errorf(codes.Internal, "Failed get ipv6 address for Iscsi Target.")
 				}
+			}
+
+			devicePath, err = getDevicePath(devicePath)
+			if err != nil {
+				logger.With(zap.Error(err)).Error("Failed to get device path for paravirtualized volume")
+
+				return nil, status.Error(codes.Internal, "Failed to get device path for paravirtualized volume")
 			}
 
 			mountHandler = disk.NewFromISCSIDisk(d.logger, scsiInfo)
@@ -1016,4 +1024,60 @@ func getMultipathDevicesFromReq(req *csi.NodeStageVolumeRequest) ([]core.Multipa
 	})
 
 	return multipathDevicesList, nil
+}
+
+func getDevicePath(devicePath string) (string, error) {
+	sysPath := "/sys/bus/scsi/devices"
+
+	if _, err := os.Stat(devicePath); err == nil {
+		return devicePath, nil
+	}
+
+	if strings.HasPrefix(devicePath, "/dev/oracleoci/oraclevd") {
+		// The format is /dev/oracleoci/oraclevdxx
+		// 2 becomes /dev/oracleoci/oraclevdb, 3 becomes /dev/oracleoci/oraclevdc and so on.
+		lunName := devicePath[len("/dev/oracleoci/oraclevd"):]
+		lun := int(lunName[0]) - 96
+
+		if dirs, err := os.ReadDir(sysPath); err == nil {
+			for _, f := range dirs {
+				device := f.Name()
+
+				// /sys/bus/scsi/devices/0:0:0:0
+				arr := strings.Split(device, ":")
+				if len(arr) < 4 {
+					continue
+				}
+
+				l, err := strconv.Atoi(arr[3])
+				if err != nil {
+					continue
+				}
+
+				if lun == l {
+					vendorBytes, err := os.ReadFile(filepath.Join(sysPath, device, "vendor"))
+					if err != nil {
+						continue
+					}
+
+					vendor := strings.TrimSpace(string(vendorBytes))
+					if strings.ToUpper(vendor) != "ORACLE" {
+						continue
+					}
+
+					if dev, err := os.ReadDir(filepath.Join(sysPath, device, "block")); err == nil {
+						if len(dev) > 0 {
+							devName := dev[0].Name()
+
+							return fmt.Sprintf("/dev/%s", devName), nil
+						}
+
+						continue
+					}
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no block device found")
 }
